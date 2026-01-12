@@ -19,11 +19,15 @@
     "dev": "nodemon app.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "bullmq": "^5.66.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "ioredis": "^5.9.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.1.2",
     "morgan": "^1.10.1",
+    "nodemailer": "^7.0.12",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

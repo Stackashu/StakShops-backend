@@ -2,6 +2,7 @@ const express = require('express');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 const connectDb = require('./DB/Database.js');
+const userRoutes = require('./Router/User.router.js')
 
 dotenv.config();
 
@@ -14,9 +15,10 @@ app.use(morgan('dev'));
 app.use(express.json());
 
 app.get('/', (req, res) => {
-  res.send('Hello, world!');
+  res.send('Health Ok!');
 });
 
+app.use("/api/user",userRoutes)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);

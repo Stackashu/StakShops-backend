@@ -17,6 +17,10 @@ const vendorSchema = mongoose.Schema({
         unique: true,
         trim : true
     },
+    ShopType:{
+        type:String,
+        trim : true
+    },
     password:{
         type: String,
         required: true
@@ -31,3 +35,5 @@ const vendorSchema = mongoose.Schema({
         type: Date
     }
 },{timestamps: true})
+
+module.exports = mongoose.model("Vendor", vendorSchema);
