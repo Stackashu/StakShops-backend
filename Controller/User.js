@@ -1,53 +1,127 @@
-const User = require('../Model/User.model.js')
-const bcrypt = require('bcryptjs');
-const jwt = require("jsonwebtoken")
-const {Queue} = require("bullmq");
-const redisConnection = require('../Utils/Redis.js');
+const User = require("../Model/User.model.js");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const { Queue, tryCatch } = require("bullmq");
+const redisConnection = require("../Utils/Redis.js");
+const { otpGenerator } = require("../Utils/HelpingFunctions.js");
 
-const signUpQueue = new Queue("email-queue",{
-    connection : redisConnection
-})
+// const signUpQueue = new Queue("email-queue",{
+//     connection : redisConnection
+// })
 
+const signUpUser = async (req, res) => {
+  const userDetails = req.body;
+  try {
+    const requiredFields = ["name", "email", "password"];
+    for (const field of requiredFields) {
+      if (!userDetails[field]) {
+        return res.status(400).json({ error: "All values must be filled." });
+      }
+    }
 
+    const userAlreadyExist = await User.findOne({ email: userDetails.email });
 
-const signUpUser =  async ( req , res) => {
-    const userDetails = req.body;
+    if (userAlreadyExist)
+      return res
+        .status(409)
+        .json({ error: "User already exits with this email." });
+
+    const hashedPassword = await bcrypt.hash(userDetails.password, 10);
+
+    userDetails.password = hashedPassword;
+
+    let user = await User.create(userDetails);
+
+    user = await User.findById(user._id).select("-password");
+
+    // Here to Add Queue for mailing
+    // await signUpQueue.add("email to user" , {
+    //     to : user.email,
+    //     name : user.name
+    // })
+
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.status(201).json({ user, token });
+  } catch (error) {
+    res.status(500).json({ error: "Signup Failed.", details: error.message });
+  }
+};
+
+const loginUser = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    if (!email || !password) {
+      return res.status(400).json({ error: "All fields must be filled." });
+    }
+
+    const user = await User.findOne({ email: email });
+    if (!user) {
+      return res
+        .status(400)
+        .json({ error: "No user is associated with this email." });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res
+        .status(400)
+        .json({ error: "Maybe your Email or password is wrong" });
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        email: user.email,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Hide the password field in the response
+    const userData = user.toObject();
+    delete userData.password;
+
+    res.status(200).json({ user: userData, token });
+  } catch (error) {
+    res.status(500).json({ error: "Login failed", details: error.message });
+  }
+};
+
+const sendOtp = async ( req , res) =>{
+    const {email} = req.body;
     try {
-         const requiredFields = ['name' , 'email' , 'password']
-        for (const field of requiredFields) {
-            if (!userDetails[field]) {
-                return res.status(400).json({ error: "All values must be filled." });
-            }
-        }
+        if(!email) return res.status(400).json({error : "Please fill all the details first."})
         
-        const userAlreadyExist = await User.findOne({email : userDetails.email})
-
-        if(userAlreadyExist) return res.status(409).json({ error : "User already exits with this email."})
+       const generatedOtp = await otpGenerator();
         
-        const hashedPassword = await bcrypt.hash(userDetails.password, 10);
+       //Here use redis to store the otp for verifying it
 
-        userDetails.password = hashedPassword;
-
-        let user = await User.create(userDetails);
-
-        user = await User.findById(user._id).select("-password");
-
-        await signUpQueue.add("email to user" , {
-            to : user.email,
-            name : user.name
-        })
-
-        const token = jwt.sign(
-            {userId : user._id , email : user.email },
-            process.env.JWT_SECRET,
-            {expiresIn : "7d"}
-        )
-
-        res.status(201).json({user , token});
-
+       res.status(201).json({ generatedOtp })
+        
     } catch (error) {
-         res.status(500).json({error : "Signup Failed." , details : error.message})
+        
     }
 }
 
-module.exports = {signUpUser}
+const verifyOtp = async(req, res ) =>{
+    const {email , otp} = req.body;
+
+    try {
+        if(!email || !otp) return res.status(400).json({error : "Please fill alll the details."})
+        
+        // HERE SEARCH FOR THE OTP IN REDIS TO COMPARE IT THEN MOVE FURTHER 
+        const otpFromRedis = "000000";
+        const matched = otpFromRedis == otp;
+        if(!matched) return res.status(400).json({error : "Your entered otp is wrong."})
+        
+        res.status(200).json({message : "Successfully matched"})
+    } catch (error) {
+        
+    }
+}
+module.exports = { signUpUser, loginUser , sendOtp , verifyOtp };
