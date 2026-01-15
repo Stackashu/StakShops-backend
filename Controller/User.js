@@ -1,7 +1,7 @@
 const User = require("../Model/User.model.js");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { Queue, tryCatch } = require("bullmq");
+const { Queue, asyncSend, tryCatch } = require("bullmq");
 const redisConnection = require("../Utils/Redis.js");
 const { otpGenerator } = require("../Utils/HelpingFunctions.js");
 
@@ -92,36 +92,96 @@ const loginUser = async (req, res) => {
   }
 };
 
-const sendOtp = async ( req , res) =>{
-    const {email} = req.body;
-    try {
-        if(!email) return res.status(400).json({error : "Please fill all the details first."})
-        
-       const generatedOtp = await otpGenerator();
-        
-       //Here use redis to store the otp for verifying it
+const sendOtp = async (req, res) => {
+  const { email } = req.body;
+  try {
+    if (!email)
+      return res
+        .status(400)
+        .json({ error: "Please fill all the details first." });
 
-       res.status(201).json({ generatedOtp })
-        
-    } catch (error) {
-        
-    }
-}
+    const generatedOtp = await otpGenerator();
 
-const verifyOtp = async(req, res ) =>{
-    const {email , otp} = req.body;
+    //Here use redis to store the otp for verifying it
 
-    try {
-        if(!email || !otp) return res.status(400).json({error : "Please fill alll the details."})
-        
-        // HERE SEARCH FOR THE OTP IN REDIS TO COMPARE IT THEN MOVE FURTHER 
-        const otpFromRedis = "000000";
-        const matched = otpFromRedis == otp;
-        if(!matched) return res.status(400).json({error : "Your entered otp is wrong."})
-        
-        res.status(200).json({message : "Successfully matched"})
-    } catch (error) {
-        
-    }
-}
-module.exports = { signUpUser, loginUser , sendOtp , verifyOtp };
+    res.status(201).json({ generatedOtp });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Something went wrong.", details: error.message });
+  }
+};
+
+const verifyOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  try {
+    if (!email || !otp)
+      return res.status(400).json({ error: "Please fill alll the details." });
+
+    // HERE SEARCH FOR THE OTP IN REDIS TO COMPARE IT THEN MOVE FURTHER
+    const otpFromRedis = "000000";
+    const matched = otpFromRedis == otp;
+    if (!matched)
+      return res.status(400).json({ error: "Your entered otp is wrong." });
+
+    res.status(200).json({ message: "Successfully matched" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Something went wrong.", details: error.message });
+  }
+};
+
+const userDetails = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    if (!email)
+      return res.status(400).json({ error: "Please Enter all fields." });
+
+    const userFound = User.findOne({ email }).select("-password");
+
+    if (!userFound)
+      return res.status(400).json({ error: "No user found with this email." });
+
+    res.status(200).json({ userFound });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "User fetching failes.", details: error.message });
+  }
+};
+
+const updateUser = async (req, res) => {
+  const { userData } = req.body;
+  try {
+    if (!userData)
+      return res.status(400).json({ error: "Please all the fields" });
+
+    const userFound = await User.findOne({ email: userData.email });
+    if (!userFound)
+      return res
+        .status(400)
+        .json({ error: "No user is asssociated with this email." });
+
+    const updatedUser = await User.findOneAndUpdate(
+      { email },
+      { ...req.body },
+      { new: true, runValidators: true }
+    );
+
+    res.status(201).json({ updatedUser });
+  } catch (error) {
+    res.status(500).json({ error: "Update Failed.", details: error.message });
+  }
+};
+
+module.exports = {
+  signUpUser,
+  loginUser,
+  sendOtp,
+  verifyOtp,
+  userDetails,
+  updateUser,
+};
