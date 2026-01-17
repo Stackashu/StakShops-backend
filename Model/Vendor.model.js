@@ -33,7 +33,11 @@ const vendorSchema = mongoose.Schema({
     },
     subscriptionEnd:{
         type: Date
-    }
+    },
+    vouchers: [{
+        type: String,
+        select: false
+    }]
 },{timestamps: true})
 
 module.exports = mongoose.model("Vendor", vendorSchema);

@@ -1,18 +1,24 @@
-// const IORedis = require("ioredis");
+const IORedis = require("ioredis");
 
-// const redis = new IORedis({
-//   host: "redis-10072.crce220.us-east-1-4.ec2.cloud.redislabs.com",
-//   port: 10072,
-//   username: "default", // IMPORTANT
-// //   tls: {}              // REQUIRED for Redis Cloud
-// });
+// Validate REDIS_URL is set
+if (!process.env.REDIS_URL) {
+  console.error("Error: REDIS_URL environment variable is not set. Please set it in your .env file.");
+  throw new Error("REDIS_URL environment variable is required");
+}
 
-// redis.on("connect", () => {
-//   console.log("✅ Redis Cloud connected (no password)");
-// });
+const connection = new IORedis(process.env.REDIS_URL, {
+  maxRetriesPerRequest: null, // REQUIRED for BullMQ
+  tls: {
+    rejectUnauthorized: false, // REQUIRED for Upstash
+  },
+});
 
-// redis.on("error", (err) => {
-//   console.error("❌ Redis error:", err);
-// });
+connection.on("connect", () => {
+  console.log("Connected to Upstash Redis");
+});
 
-// module.exports = redis;
+connection.on("error", (err) => {
+  console.error("Redis error:", err);
+});
+
+module.exports = connection;

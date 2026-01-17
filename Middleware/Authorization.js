@@ -1,21 +1,24 @@
-const jwt = require("jsonwebtoken")
+const jwt = require("jsonwebtoken");
 
-
-export const authentication = async ( req, res) =>{
+const authentication = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
-        if(!authHeader)
-            return res.status(401).json({error : "Access Denied . No Authorization header provided"});
+        if (!authHeader) {
+            return res.status(401).json({ error: "Access Denied. No Authorization header provided" });
+        }
 
-        
-        const [scheme , token ] = authHeader.split(" ");
+        const [scheme, token] = authHeader.split(" ");
 
-        if(!token || scheme !== "Bearer")
-            return res.status(401).json({error : "Access denied. Invalid token format."})
+        if (!token || scheme !== "Bearer") {
+            return res.status(401).json({ error: "Access denied. Invalid token format." });
+        }
 
-        const decoded = jwt.verify(token , process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded; // attach user info to req if desired
         next();
     } catch (error) {
-        return res.status(401).json({error : "Invalid token" , message : error.message});
+        return res.status(401).json({ error: "Invalid token", message: error.message });
     }
-}
+};
+
+module.exports = { authentication };

@@ -1,10 +1,11 @@
+// Load environment variables FIRST before any other imports
+const dotenv = require('dotenv');
+dotenv.config();
+
 const express = require('express');
 const morgan = require('morgan');
-const dotenv = require('dotenv');
 const connectDb = require('./DB/Database.js');
 const userRoutes = require('./Router/User.router.js')
-
-dotenv.config();
 
 // Connect to database
 connectDb();

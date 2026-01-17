@@ -5,9 +5,9 @@ const { Queue, asyncSend, tryCatch } = require("bullmq");
 const redisConnection = require("../Utils/Redis.js");
 const { otpGenerator } = require("../Utils/HelpingFunctions.js");
 
-// const signUpQueue = new Queue("email-queue",{
-//     connection : redisConnection
-// })
+const signUpQueue = new Queue("email-queue",{
+    connection : redisConnection
+})
 
 const signUpUser = async (req, res) => {
   const userDetails = req.body;
