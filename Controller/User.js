@@ -1,13 +1,10 @@
 const User = require("../Model/User.model.js");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { Queue, asyncSend, tryCatch } = require("bullmq");
-const redisConnection = require("../Utils/Redis.js");
+const redis = require("../Utils/Redis.js"); // Redis connection for caching and BullMQ
+const { signUpQueue, otpSendingQueue } = require("../Utils/ProducerQueue.js");
 const { otpGenerator } = require("../Utils/HelpingFunctions.js");
 
-const signUpQueue = new Queue("email-queue",{
-    connection : redisConnection
-})
 
 const signUpUser = async (req, res) => {
   const userDetails = req.body;
@@ -35,10 +32,10 @@ const signUpUser = async (req, res) => {
     user = await User.findById(user._id).select("-password");
 
     // Here to Add Queue for mailing
-    // await signUpQueue.add("email to user" , {
-    //     to : user.email,
-    //     name : user.name
-    // })
+    await signUpQueue.add("email to user", {
+      to: user.email,
+      name: user.name
+    })
 
     const token = jwt.sign(
       { userId: user._id, email: user.email },
@@ -102,9 +99,17 @@ const sendOtp = async (req, res) => {
 
     const generatedOtp = await otpGenerator();
 
-    //Here use redis to store the otp for verifying it
+    // Store OTP in Redis with 10 minutes expiration
+    const otpKey = `otp:${email}`;
+    await redis.setex(otpKey, 600, generatedOtp); // 600 seconds = 10 minutes
 
-    res.status(201).json({ generatedOtp });
+    await otpSendingQueue.add("otp send to user", {
+      to: email,
+      otp: generatedOtp
+    })
+    res.status(201).json({
+      message: "OTP sent successfully",
+    });
   } catch (error) {
     res
       .status(500)
@@ -119,13 +124,21 @@ const verifyOtp = async (req, res) => {
     if (!email || !otp)
       return res.status(400).json({ error: "Please fill alll the details." });
 
-    // HERE SEARCH FOR THE OTP IN REDIS TO COMPARE IT THEN MOVE FURTHER
-    const otpFromRedis = "000000";
-    const matched = otpFromRedis == otp;
+    // Retrieve OTP from Redis
+    const otpKey = `otp:${email}`;
+    const otpFromRedis = await redis.get(otpKey);
+
+    if (!otpFromRedis)
+      return res.status(400).json({ error: "OTP expired or not found. Please request a new OTP." });
+
+    const matched = otpFromRedis === otp;
     if (!matched)
       return res.status(400).json({ error: "Your entered otp is wrong." });
 
-    res.status(200).json({ message: "Successfully matched" });
+    // Delete OTP from Redis after successful verification
+    await redis.del(otpKey);
+
+    res.status(200).json({ message: "OTP verified successfully" });
   } catch (error) {
     res
       .status(500)
@@ -140,16 +153,35 @@ const userDetails = async (req, res) => {
     if (!email)
       return res.status(400).json({ error: "Please Enter all fields." });
 
-    const userFound = User.findOne({ email }).select("-password");
+    // Try to get user from Redis cache first
+    const cacheKey = `user:${email}`;
+    const cachedUser = await redis.get(cacheKey);
+
+    if (cachedUser) {
+      // User found in cache
+      return res.status(200).json({
+        userFound: JSON.parse(cachedUser),
+        fromCache: true
+      });
+    }
+
+    // If not in cache, fetch from database
+    const userFound = await User.findOne({ email }).select("-password");
 
     if (!userFound)
       return res.status(400).json({ error: "No user found with this email." });
 
-    res.status(200).json({ userFound });
+    // Store user in Redis cache for 1 hour (3600 seconds)
+    await redis.setex(cacheKey, 3600, JSON.stringify(userFound));
+
+    res.status(200).json({
+      userFound,
+      fromCache: false
+    });
   } catch (error) {
     res
       .status(500)
-      .json({ error: "User fetching failes.", details: error.message });
+      .json({ error: "User fetching failed.", details: error.message });
   }
 };
 
@@ -166,10 +198,17 @@ const updateUser = async (req, res) => {
         .json({ error: "No user is asssociated with this email." });
 
     const updatedUser = await User.findOneAndUpdate(
-      { email },
+      { email: userData.email },
       { ...req.body },
       { new: true, runValidators: true }
-    );
+    ).select("-password");
+
+    // Invalidate cache after update
+    const cacheKey = `user:${userData.email}`;
+    await redis.del(cacheKey);
+
+    // Optionally, update cache with new data
+    await redis.setex(cacheKey, 3600, JSON.stringify(updatedUser));
 
     res.status(201).json({ updatedUser });
   } catch (error) {
