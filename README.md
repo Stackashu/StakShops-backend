@@ -652,4 +652,4 @@ For issues or questions, please contact the development team.
 
 ---
 
-**Last Updated:** 2024
+**Last Updated:** 01/18/2026
