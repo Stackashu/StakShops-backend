@@ -19,7 +19,8 @@ const userSchema = mongoose.Schema({
     },
     password: {
         type: String,
-        required: true
+        required: true,
+        // select : false
     },
     address: {
         type: String,
@@ -38,7 +39,9 @@ const userSchema = mongoose.Schema({
     profilePicture: {
         type: String,
         trim: true
-    }
+    }, vouchers: [{
+        type: String,
+    }]
 }, { timestamps: true }); // This adds createdAt and updatedAt automatically
 
 module.exports = mongoose.model("User", userSchema);

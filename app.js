@@ -5,6 +5,7 @@ const express = require('express');
 const morgan = require('morgan');
 const connectDb = require('./DB/Database.js');
 const userRoutes = require('./Router/User.router.js');
+const vendorRoutes = require("./Router/Vendor.router.js")
 
 // Import workers to start processing jobs
 require('./Utils/WorkerQueue.js');
@@ -22,6 +23,8 @@ app.get('/', (req, res) => {
 });
 
 app.use("/api/user",userRoutes)
+app.use("/api/vendor" , vendorRoutes)
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);

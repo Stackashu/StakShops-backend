@@ -23,6 +23,7 @@ const vendorSchema = mongoose.Schema({
     },
     password:{
         type: String,
+        // select : false,
         required: true
     },
     Address:{
@@ -36,7 +37,6 @@ const vendorSchema = mongoose.Schema({
     },
     vouchers: [{
         type: String,
-        select: false
     }]
 },{timestamps: true})
 

@@ -189,7 +189,7 @@ const updateUser = async (req, res) => {
   const { userData } = req.body;
   try {
     if (!userData)
-      return res.status(400).json({ error: "Please all the fields" });
+      return res.status(400).json({ error: "Please fill all the fields" });
 
     const userFound = await User.findOne({ email: userData.email });
     if (!userFound)
