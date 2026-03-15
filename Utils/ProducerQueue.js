@@ -9,4 +9,8 @@ const otpSendingQueue = new Queue("otp-email-queue", {
   connection: redis
 });
 
-module.exports = { signUpQueue, otpSendingQueue };
+const subscriptionQueue = new Queue("subscription-email-queue", {
+  connection: redis
+});
+
+module.exports = { signUpQueue, otpSendingQueue, subscriptionQueue };

@@ -5,7 +5,11 @@ const express = require('express');
 const morgan = require('morgan');
 const connectDb = require('./DB/Database.js');
 const userRoutes = require('./Router/User.router.js');
-const vendorRoutes = require("./Router/Vendor.router.js")
+const vendorRoutes = require("./Router/Vendor.router.js");
+const subscriptionRoutes = require("./Router/Subscription.router.js");
+const pinRoutes = require("./Router/Pin.router.js");
+const cors = require("cors");
+
 
 // Import workers to start processing jobs
 require('./Utils/WorkerQueue.js');
@@ -14,6 +18,7 @@ require('./Utils/WorkerQueue.js');
 connectDb();
 
 const app = express();
+app.use(cors());
 
 app.use(morgan('dev'));
 app.use(express.json());
@@ -22,10 +27,12 @@ app.get('/', (req, res) => {
   res.send('Health Ok!');
 });
 
-app.use("/api/user",userRoutes)
-app.use("/api/vendor" , vendorRoutes)
+app.use("/api/user", userRoutes);
+app.use("/api/vendor", vendorRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
+app.use("/api/pins", pinRoutes);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });

@@ -1,43 +1,75 @@
 const mongoose = require("mongoose")
 
 const vendorSchema = mongoose.Schema({
-    name:{
+    name: {
         type: String,
-        required : true,
-        trim : true
+        required: true,
+        trim: true
     },
-    dob:{
-        type:Date,
+    dob: {
+        type: Date,
         required: true
     },
-    email:{
+    role: {
         type: String,
-        required : true,
-        lowercase : true,
+        required: true
+    },
+    email: {
+        type: String,
+        required: true,
+        lowercase: true,
         unique: true,
-        trim : true
+        trim: true
     },
-    ShopType:{
-        type:String,
-        trim : true
+    ShopType: {
+        type: String,
+        trim: true
     },
-    password:{
+    password: {
         type: String,
         // select : false,
         required: true
     },
-    Address:{
-        type:String,
+    phone: {
+        type: String,
+        required: true,
+        trim: true
     },
-    subscriptionStart:{
+    address: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    subscriptionStart: {
         type: Date,
     },
-    subscriptionEnd:{
+    subscriptionEnd: {
         type: Date
     },
     vouchers: [{
         type: String,
-    }]
-},{timestamps: true})
+    }],
+    status: {
+        type: String,
+        enum: ['active', 'suspended', 'deleted'],
+        default: 'active'
+    },
+    isVisibilityBoosted: {
+        type: Boolean,
+        default: true
+    },
+    trialEndDate: {
+        type: Date,
+        default: function () {
+            const date = new Date();
+            date.setMonth(date.getMonth() + 1); // 1 month free trial
+            return date;
+        }
+    },
+    currentSubscription: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Subscription'
+    }
+}, { timestamps: true })
 
 module.exports = mongoose.model("Vendor", vendorSchema);

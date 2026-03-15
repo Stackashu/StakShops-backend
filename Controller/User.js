@@ -1,10 +1,10 @@
 const User = require("../Model/User.model.js");
+const Transaction = require("../Model/Transaction.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const redis = require("../Utils/Redis.js"); // Redis connection for caching and BullMQ
+const redis = require("../Utils/Redis.js"); 
 const { signUpQueue, otpSendingQueue } = require("../Utils/ProducerQueue.js");
 const { otpGenerator } = require("../Utils/HelpingFunctions.js");
-
 
 const signUpUser = async (req, res) => {
   const userDetails = req.body;
@@ -31,11 +31,10 @@ const signUpUser = async (req, res) => {
 
     user = await User.findById(user._id).select("-password");
 
-    // Here to Add Queue for mailing
     await signUpQueue.add("email to user", {
       to: user.email,
       name: user.name
-    })
+    });
 
     const token = jwt.sign(
       { userId: user._id, email: user.email },
@@ -79,7 +78,6 @@ const loginUser = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // Hide the password field in the response
     const userData = user.toObject();
     delete userData.password;
 
@@ -99,14 +97,13 @@ const sendOtp = async (req, res) => {
 
     const generatedOtp = await otpGenerator();
 
-    // Store OTP in Redis with 10 minutes expiration
     const otpKey = `otp:${email}`;
-    await redis.setex(otpKey, 600, generatedOtp); // 600 seconds = 10 minutes
+    await redis.setex(otpKey, 600, generatedOtp);
 
     await otpSendingQueue.add("otp send to user", {
       to: email,
       otp: generatedOtp
-    })
+    });
     res.status(201).json({
       message: "OTP sent successfully",
     });
@@ -124,7 +121,6 @@ const verifyOtp = async (req, res) => {
     if (!email || !otp)
       return res.status(400).json({ error: "Please fill alll the details." });
 
-    // Retrieve OTP from Redis
     const otpKey = `otp:${email}`;
     const otpFromRedis = await redis.get(otpKey);
 
@@ -135,7 +131,6 @@ const verifyOtp = async (req, res) => {
     if (!matched)
       return res.status(400).json({ error: "Your entered otp is wrong." });
 
-    // Delete OTP from Redis after successful verification
     await redis.del(otpKey);
 
     res.status(200).json({ message: "OTP verified successfully" });
@@ -147,31 +142,27 @@ const verifyOtp = async (req, res) => {
 };
 
 const userDetails = async (req, res) => {
-  const { email } = req.body;
+  const email = req.user.email;
 
   try {
     if (!email)
-      return res.status(400).json({ error: "Please Enter all fields." });
+      return res.status(401).json({ error: "Unauthorized. No email in token." });
 
-    // Try to get user from Redis cache first
     const cacheKey = `user:${email}`;
     const cachedUser = await redis.get(cacheKey);
 
     if (cachedUser) {
-      // User found in cache
       return res.status(200).json({
         userFound: JSON.parse(cachedUser),
         fromCache: true
       });
     }
 
-    // If not in cache, fetch from database
     const userFound = await User.findOne({ email }).select("-password");
 
     if (!userFound)
       return res.status(400).json({ error: "No user found with this email." });
 
-    // Store user in Redis cache for 1 hour (3600 seconds)
     await redis.setex(cacheKey, 3600, JSON.stringify(userFound));
 
     res.status(200).json({
@@ -186,33 +177,72 @@ const userDetails = async (req, res) => {
 };
 
 const updateUser = async (req, res) => {
-  const { userData } = req.body;
+  const userId = req.user.userId;
+  const updateData = req.body;
+
   try {
-    if (!userData)
-      return res.status(400).json({ error: "Please fill all the fields" });
+    if (!updateData) {
+      return res.status(400).json({ error: "No data provided for update." });
+    }
 
-    const userFound = await User.findOne({ email: userData.email });
-    if (!userFound)
-      return res
-        .status(400)
-        .json({ error: "No user is asssociated with this email." });
+    delete updateData.password;
 
-    const updatedUser = await User.findOneAndUpdate(
-      { email: userData.email },
-      { ...req.body },
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
       { new: true, runValidators: true }
     ).select("-password");
 
-    // Invalidate cache after update
-    const cacheKey = `user:${userData.email}`;
-    await redis.del(cacheKey);
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found." });
+    }
 
-    // Optionally, update cache with new data
+    const cacheKey = `user:${updatedUser.email}`;
+    await redis.del(cacheKey);
     await redis.setex(cacheKey, 3600, JSON.stringify(updatedUser));
 
-    res.status(201).json({ updatedUser });
+    res.status(200).json({ updatedUser });
   } catch (error) {
     res.status(500).json({ error: "Update Failed.", details: error.message });
+  }
+};
+
+const changePassword = async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const userId = req.user.userId;
+
+  try {
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: "All fields are required." });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: "Incorrect old password." });
+    }
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedNewPassword;
+    await user.save();
+
+    res.status(200).json({ message: "Password changed successfully." });
+  } catch (error) {
+    res.status(500).json({ error: "Password change failed.", details: error.message });
+  }
+};
+
+const getUserTransactions = async (req, res) => {
+  const userId = req.user.userId;
+  try {
+    const transactions = await Transaction.find({ buyerId: userId, buyerType: 'User' }).sort({ createdAt: -1 });
+    res.status(200).json({ transactions });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch transactions.", details: error.message });
   }
 };
 
@@ -223,4 +253,6 @@ module.exports = {
   verifyOtp,
   userDetails,
   updateUser,
+  changePassword,
+  getUserTransactions
 };

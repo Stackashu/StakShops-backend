@@ -1,5 +1,6 @@
 const mongoose = require("mongoose")
 
+// This is for the user when he will book an moving vendor
 const bookingSchmea = mongoose.Schema({
     orderedBy : {
         type : mongoose.Schema.Types.ObjectId,

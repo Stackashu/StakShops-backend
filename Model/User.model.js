@@ -10,6 +10,10 @@ const userSchema = mongoose.Schema({
     dob: {
         type: Date
     },
+    role: {
+        type: String,
+        required: true
+    },
     email: {
         type: String,
         required: true,
@@ -22,8 +26,14 @@ const userSchema = mongoose.Schema({
         required: true,
         // select : false
     },
+    phone: {
+        type: String,
+        required: true,
+        trim: true
+    },
     address: {
         type: String,
+        required: true,
         trim: true
     },
     subscriptionStart: {
@@ -34,12 +44,26 @@ const userSchema = mongoose.Schema({
     },
     pins: {
         type: Number,
-        default: 2
+        default: 3
     },
     profilePicture: {
         type: String,
         trim: true
-    }, vouchers: [{
+    },
+    status: {
+        type: String,
+        enum: ['active', 'suspended', 'deleted'],
+        default: 'active'
+    },
+    trialEndDate: {
+        type: Date,
+        default: function () {
+            const date = new Date();
+            date.setMonth(date.getMonth() + 1); // 1 month trial
+            return date;
+        }
+    },
+    vouchers: [{
         type: String,
     }]
 }, { timestamps: true }); // This adds createdAt and updatedAt automatically

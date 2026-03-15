@@ -1,5 +1,6 @@
 const mongoose = require('mongoose')
 
+//This is for the User the Location he will put an Pin
 const pinSchema = mongoose.Schema({
     orderedBy: {
         type: mongoose.Schema.Types.ObjectId,

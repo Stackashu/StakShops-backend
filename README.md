@@ -26,7 +26,7 @@ StakShops Backend is a Node.js/Express REST API with the following features:
 ## 🌐 Base URL
 
 ```
-http://localhost:3000
+http://localhost:5000
 ```
 
 All API endpoints are prefixed with `/api/user`
@@ -62,7 +62,7 @@ Authorization: Bearer <your_jwt_token>
 
 **Request:**
 ```bash
-GET http://localhost:3000/
+GET http://localhost:5000/
 ```
 
 **Response:**
@@ -92,7 +92,7 @@ Health Ok!
 
 **Request Example:**
 ```bash
-curl -X POST http://localhost:3000/api/user/signup \
+curl -X POST http://localhost:5000/api/user/signup \
   -H "Content-Type: application/json" \
   -d '{
     "name": "John Doe",
@@ -161,7 +161,7 @@ curl -X POST http://localhost:3000/api/user/signup \
 
 **Request Example:**
 ```bash
-curl -X POST http://localhost:3000/api/user/login \
+curl -X POST http://localhost:5000/api/user/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "john@example.com",
@@ -226,7 +226,7 @@ curl -X POST http://localhost:3000/api/user/login \
 
 **Request Example:**
 ```bash
-curl -X POST http://localhost:3000/api/user/sendOtp \
+curl -X POST http://localhost:5000/api/user/sendOtp \
   -H "Content-Type: application/json" \
   -d '{
     "email": "john@example.com"
@@ -281,7 +281,7 @@ curl -X POST http://localhost:3000/api/user/sendOtp \
 
 **Request Example:**
 ```bash
-curl -X POST http://localhost:3000/api/user/verifyOtp \
+curl -X POST http://localhost:5000/api/user/verifyOtp \
   -H "Content-Type: application/json" \
   -d '{
     "email": "john@example.com",
@@ -351,7 +351,7 @@ Content-Type: application/json
 
 **Request Example:**
 ```bash
-curl -X GET http://localhost:3000/api/user/ \
+curl -X GET http://localhost:5000/api/user/ \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -447,7 +447,7 @@ Content-Type: application/json
 
 **Request Example:**
 ```bash
-curl -X POST http://localhost:3000/api/user/updateUser \
+curl -X POST http://localhost:5000/api/user/updateUser \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -533,7 +533,7 @@ Create a `.env` file in the root directory with the following variables:
 
 ```env
 # Server Configuration
-PORT=3000
+PORT=5000
 
 # Database
 MONGODB_URI=your_mongodb_connection_string
@@ -593,7 +593,7 @@ GOOGLE_PASS=your_app_password
 
 5. **Verify server is running**
    ```bash
-   curl http://localhost:3000/
+   curl http://localhost:5000/
    # Should return: Health Ok!
    ```
 
