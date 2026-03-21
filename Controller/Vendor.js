@@ -226,6 +226,15 @@ const getVendorTransactions = async (req, res) => {
     }
 };
 
+const getAllVendors = async (req, res) => {
+    try {
+        const vendors = await Vendor.find({ status: 'active' }).select('name ShopType lat lng address');
+        res.status(200).json({ vendors });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch vendors.", details: error.message });
+    }
+};
+
 module.exports = {
-    signupVendor, loginVendor, sendOtp, verifyOtp, vendorDetails, updateVendor, changePassword, getVendorTransactions
-};
+    signupVendor, loginVendor, sendOtp, verifyOtp, vendorDetails, updateVendor, changePassword, getVendorTransactions, getAllVendors
+};

@@ -32,7 +32,15 @@ app.use("/api/vendor", vendorRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/pins", pinRoutes);
 
+const http = require('http');
+const { setupSocket } = require('./Utils/Socket.js');
+
+const server = http.createServer(app);
+
+// Setup Socket.io
+setupSocket(server);
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
