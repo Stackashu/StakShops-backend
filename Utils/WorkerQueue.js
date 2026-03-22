@@ -159,4 +159,21 @@ const subscriptionEmailWorker = new Worker("subscription-email-queue", async (jo
   connection: redisConnection
 });
 
+// Verify mailer connection on startup
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.GOOGLE_GMAIL,
+    pass: process.env.GOOGLE_PASS
+  }
+});
+
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("Mailer Connection Error:", error);
+  } else {
+    console.log("Mailer is ready to take our messages");
+  }
+});
+
 module.exports = { signupEmailWorker, otpSentWorker, subscriptionEmailWorker };

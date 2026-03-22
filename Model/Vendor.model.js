@@ -69,6 +69,10 @@ const vendorSchema = mongoose.Schema({
     currentSubscription: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Subscription'
+    },
+    visibilityRadius: {
+        type: Number,
+        default: 300
     }
 }, { timestamps: true })
 

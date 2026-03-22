@@ -90,7 +90,8 @@ const verifyPayment = async (req, res) => {
             await Vendor.findByIdAndUpdate(transaction.buyerId, {
                 currentSubscription: subscription._id,
                 subscriptionStart: startDate,
-                subscriptionEnd: endDate
+                subscriptionEnd: endDate,
+                visibilityRadius: plan.visibilityRadius
             });
 
             // Queue notification email
@@ -134,16 +135,17 @@ const verifyPayment = async (req, res) => {
 const seedPlans = async (req, res) => {
     try {
         const plans = [
-            { name: 'Bronze', price: 1, durationDays: 30, visibilityRadius: 300, features: ['300m Visibility'] },
-            { name: 'Silver', price: 149, durationDays: 30, visibilityRadius: 500, features: ['500m Visibility', 'Medium Boost'] },
-            { name: 'Gold', price: 199, durationDays: 30, visibilityRadius: 1200, features: ['1200m Visibility', 'High Boost'] }
+            { name: 'Bronze', price: 99, durationDays: 30, visibilityRadius: 300, features: ['300m Visibility', 'Basic Support'] },
+            { name: 'Silver', price: 149, durationDays: 30, visibilityRadius: 500, features: ['500m Visibility', 'Medium Boost', 'Priority Support'] },
+            { name: 'Gold', price: 199, durationDays: 30, visibilityRadius: 1200, features: ['1200m Visibility', 'High Boost', 'Direct Ads'] }
         ];
         await SubscriptionPlan.deleteMany({});
         await SubscriptionPlan.insertMany(plans);
 
         const packages = [
-            { name: 'Mini', price: 10, pinCount: 5 },
-            { name: 'Standard', price: 25, pinCount: 15 }
+            { name: 'Starter', price: 99, pinCount: 10 },
+            { name: 'Growth', price: 189, pinCount: 20 },
+            { name: 'Pro', price: 449, pinCount: 50 }
         ];
         await PinPackage.deleteMany({});
         await PinPackage.insertMany(packages);
@@ -154,4 +156,22 @@ const seedPlans = async (req, res) => {
     }
 };
 
-module.exports = { createOrder, verifyPayment, seedPlans };
+const getSubscriptionPlans = async (req, res) => {
+    try {
+        const plans = await SubscriptionPlan.find({ isActive: true });
+        res.status(200).json({ plans });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+const getPinPackages = async (req, res) => {
+    try {
+        const packages = await PinPackage.find({ isActive: true });
+        res.status(200).json({ packages });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+module.exports = { createOrder, verifyPayment, seedPlans, getSubscriptionPlans, getPinPackages };

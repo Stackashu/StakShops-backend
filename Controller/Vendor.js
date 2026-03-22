@@ -1,4 +1,6 @@
 const Vendor = require('../Model/Vendor.model.js');
+const User = require('../Model/User.model.js');
+const Pin = require('../Model/Pin.model.js');
 const Transaction = require("../Model/Transaction.model");
 const bcrypt = require('bcryptjs');
 const { signUpQueue, otpSendingQueue } = require('../Utils/ProducerQueue.js');
@@ -20,6 +22,13 @@ const signupVendor = async (req, res) => {
 
         if (vendorAlreadyExist) return res.status(400).json({ error: "This email is already with us." });
 
+        // Check if email is verified via OTP
+        const verifiedKey = `verified_email:${vendorDetails.email}`;
+        const isVerified = await redis.get(verifiedKey);
+        if (!isVerified) {
+            return res.status(400).json({ error: "Email not verified. Please verify your email via OTP first." });
+        }
+
         const hashedPassword = await bcrypt.hash(vendorDetails.password, 10);
 
         vendorDetails.password = hashedPassword;
@@ -27,6 +36,9 @@ const signupVendor = async (req, res) => {
         let vendor = await Vendor.create(vendorDetails);
 
         vendor = await Vendor.findById(vendor._id).select("-password");
+
+        // Clear verification flag after successful signup
+        await redis.del(verifiedKey);
 
         await signUpQueue.add("email to vendor", {
             to: vendor.email,
@@ -124,6 +136,10 @@ const verifyOtp = async (req, res) => {
             return res.status(400).json({ error: "Your entered otp is wrong." });
 
         await redis.del(otpKey);
+
+        // Set a verification flag in Redis for 10 minutes
+        const verifiedKey = `verified_email:${email}`;
+        await redis.setex(verifiedKey, 600, "true");
 
         res.status(200).json({ message: "OTP verified successfully" });
     } catch (error) {
@@ -235,6 +251,104 @@ const getAllVendors = async (req, res) => {
     }
 };
 
+const getNearbyVendors = async (req, res) => {
+    const { lat, lng, radius } = req.query;
+    
+    if (!lat || !lng) {
+        return res.status(400).json({ error: "Latitude and longitude are required." });
+    }
+
+    try {
+        let searchRadius = radius;
+        
+        console.log(`[getNearbyVendors] req.user:`, req.user);
+
+        if (!searchRadius) {
+            // Try to get radius from authenticated user
+            if (req.user && (req.user.userId || req.user.id)) {
+                const searchId = req.user.userId || req.user.id;
+                const user = await User.findById(searchId);
+                console.log(`[getNearbyVendors] User found:`, !!user, user?.visibilityRadius);
+                searchRadius = user ? user.visibilityRadius : 500;
+            } else {
+                console.log(`[getNearbyVendors] No authenticated user, using 500m default`);
+                searchRadius = 500; // Default public radius
+            }
+        }
+
+        console.log(`[getNearbyVendors] FINAL searchRadius: ${searchRadius}m at [${lat}, ${lng}]`);
+        
+        // Find vendor IDs within radius using GEORADIUS with WITHCOORD to get live locations
+        const rawResults = await redis.georadius('active_vendors_geo', lng, lat, searchRadius, 'm', 'WITHCOORD');
+        
+        if (!rawResults || rawResults.length === 0) {
+            return res.status(200).json({ vendors: [] });
+        }
+
+        // Create a map of live coordinates: { vendorId: { lat, lng } }
+        const liveLocations = {};
+        rawResults.forEach(([id, coords]) => {
+            liveLocations[id] = {
+                lng: parseFloat(coords[0]),
+                lat: parseFloat(coords[1])
+            };
+        });
+
+        const vendorIds = Object.keys(liveLocations);
+
+        // Fetch details for these vendors from DB
+        const dbVendors = await Vendor.find({ 
+            _id: { $in: vendorIds },
+            status: 'active'
+        }).select('name ShopType address phone');
+
+        // Merge live locations into vendor data
+        const vendors = dbVendors.map(vendor => {
+            const live = liveLocations[vendor._id.toString()];
+            return {
+                ...vendor.toObject(),
+                lat: live ? live.lat : vendor.lat,
+                lng: live ? live.lng : vendor.lng,
+                isLive: !!live
+            };
+        });
+
+        res.status(200).json({ 
+            message: "Nearby live vendors fetched",
+            count: vendors.length,
+            vendors 
+        });
+    } catch (error) {
+        console.error("Fetch nearby vendors error:", error);
+        res.status(500).json({ error: "Failed to fetch nearby vendors.", details: error.message });
+    }
+};
+
+const getVendorStats = async (req, res) => {
+    const vendorId = req.user.vendorId;
+    try {
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+
+        // Count pins where this vendor was assigned today
+        const completedToday = await Pin.countDocuments({
+            deliveredBy: vendorId,
+            createdAt: { $gte: startOfToday, $lte: endOfToday }
+        });
+
+        res.status(200).json({
+            completedToday,
+            message: "Vendor stats fetched successfully"
+        });
+    } catch (error) {
+        console.error("Fetch vendor stats error:", error);
+        res.status(500).json({ error: "Failed to fetch vendor stats.", details: error.message });
+    }
+};
+
 module.exports = {
-    signupVendor, loginVendor, sendOtp, verifyOtp, vendorDetails, updateVendor, changePassword, getVendorTransactions, getAllVendors
+    signupVendor, loginVendor, sendOtp, verifyOtp, vendorDetails, updateVendor, changePassword, getVendorTransactions, getAllVendors, getNearbyVendors, getVendorStats
 };

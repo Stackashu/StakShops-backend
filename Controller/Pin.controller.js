@@ -1,5 +1,6 @@
 const Pin = require("../Model/Pin.model");
 const User = require("../Model/User.model");
+const Vendor = require("../Model/Vendor.model");
 const redis = require("../Utils/Redis");
 
 const createPin = async (req, res) => {
@@ -56,6 +57,11 @@ const createPin = async (req, res) => {
             expiryAt
         };
         await redis.setex(redisKey, ttlSeconds, JSON.stringify(pinData));
+
+        // 6. Add to Redis Geo set for nearby search
+        // We use the same key as the member name so we can fetch the data easily
+        await redis.geoadd('active_pins_geo', lng, lat, redisKey);
+        // Note: We'll cleanup geo members during nearby search if they are expired
 
         // 6. Update User Profile Cache
         const cacheKey = `user:${email}`;
@@ -135,9 +141,14 @@ const getPinById = async (req, res) => {
 };
 
 const getAllActivePins = async (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ error: "Unauthorized. No user found in request." });
+    }
+    const userId = req.user.userId || req.user.vendorId;
+
     try {
         let cursor = '0';
-        const match = `active_pin:*:*`;
+        const match = `active_pin:${userId}:*`;
         const activePins = [];
 
         do {
@@ -153,7 +164,7 @@ const getAllActivePins = async (req, res) => {
         } while (cursor !== '0');
 
         res.status(200).json({
-            message: "All active pins fetched from Redis",
+            message: "All active pins fetched from Redis for the user",
             activePins
         });
     } catch (error) {
@@ -162,4 +173,67 @@ const getAllActivePins = async (req, res) => {
     }
 };
 
-module.exports = { createPin, getPinnedOrders, getActivePins, getPinById, getAllActivePins };
+const getNearbyPins = async (req, res) => {
+    const { lat, lng, radius } = req.query; // Radius in meters
+    
+    if (!lat || !lng) {
+        return res.status(400).json({ error: "Latitude and longitude are required." });
+    }
+
+    try {
+        // Fetch user/vendor to get their visibilityRadius
+        const requesterId = req.user.userId || req.user.vendorId || req.user.id;
+        const isVendor = !!req.user.vendorId;
+        let requester;
+        
+        console.log(`[getNearbyPins] req.user:`, req.user);
+
+        if (isVendor) {
+            requester = await Vendor.findById(requesterId);
+        } else {
+            requester = await User.findById(requesterId);
+        }
+
+        const searchRadius = radius || (requester ? requester.visibilityRadius : 500) || 500;
+        console.log(`[getNearbyPins] FINAL searchRadius: ${searchRadius}m for ${isVendor ? 'Vendor' : 'User'} ${requesterId}`);
+        
+        // Find pins within radius
+        const nearbyKeys = await redis.georadius('active_pins_geo', lng, lat, searchRadius, 'm');
+        
+        const activePins = [];
+        const expiredKeys = [];
+
+        if (nearbyKeys.length > 0) {
+            const values = await redis.mget(...nearbyKeys);
+            
+            values.forEach((v, index) => {
+                if (v) {
+                    activePins.push(JSON.parse(v));
+                } else {
+                    // Key has expired in Redis but still exists in GEO set
+                    expiredKeys.push(nearbyKeys[index]);
+                }
+            });
+
+            // Cleanup expired keys from Geo set (lazy cleanup)
+            if (expiredKeys.length > 0) {
+                await redis.zrem('active_pins_geo', ...expiredKeys);
+            }
+        }
+
+        // 2. Find Users within radius
+        const nearbyUsers = await redis.georadius('active_users_geo', lng, lat, searchRadius, 'm');
+
+        res.status(200).json({
+            message: "Nearby pins and users fetched successfully",
+            count: activePins.length,
+            userCount: nearbyUsers.length,
+            activePins
+        });
+    } catch (error) {
+        console.error("Fetch nearby pins error:", error);
+        res.status(500).json({ error: "Failed to fetch nearby pins.", details: error.message });
+    }
+};
+
+module.exports = { createPin, getPinnedOrders, getActivePins, getPinById, getAllActivePins, getNearbyPins };

@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const { authentication } = require("../Middleware/Authorization");
-const { createPin, getPinnedOrders, getActivePins, getPinById, getAllActivePins } = require("../Controller/Pin.controller");
+const { authentication, optionalAuthentication } = require("../Middleware/Authorization");
+const { createPin, getPinnedOrders, getActivePins, getPinById, getAllActivePins, getNearbyPins } = require("../Controller/Pin.controller");
 
 // POST /api/pins - Use a pin and subtract count
 router.post("/", authentication, createPin);
@@ -12,8 +12,11 @@ router.get("/", authentication, getPinnedOrders);
 // GET /api/pins/active - Fetch active pins from Redis for the current user
 router.get("/active", authentication, getActivePins);
 
-// GET /api/pins/map-active - Fetch ALL active pins from Redis for the map
-router.get("/map-active", getAllActivePins);
+// GET /api/pins/map-active - Fetch ALL active pins from Redis for the map (Restricted to user's own pins)
+router.get("/map-active", authentication, getAllActivePins);
+
+// GET /api/pins/nearby - Fetch nearby pins (Dynamic radius)
+router.get("/nearby", optionalAuthentication, getNearbyPins);
 
 // GET /api/pins/:id - Fetch single pin details
 router.get("/:id", authentication, getPinById);

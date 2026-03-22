@@ -23,6 +23,13 @@ const signUpUser = async (req, res) => {
         .status(409)
         .json({ error: "User already exits with this email." });
 
+    // Check if email is verified via OTP
+    const verifiedKey = `verified_email:${userDetails.email}`;
+    const isVerified = await redis.get(verifiedKey);
+    if (!isVerified) {
+      return res.status(400).json({ error: "Email not verified. Please verify your email via OTP first." });
+    }
+
     const hashedPassword = await bcrypt.hash(userDetails.password, 10);
 
     userDetails.password = hashedPassword;
@@ -30,6 +37,9 @@ const signUpUser = async (req, res) => {
     let user = await User.create(userDetails);
 
     user = await User.findById(user._id).select("-password");
+
+    // Clear verification flag after successful signup
+    await redis.del(verifiedKey);
 
     await signUpQueue.add("email to user", {
       to: user.email,
@@ -132,6 +142,10 @@ const verifyOtp = async (req, res) => {
       return res.status(400).json({ error: "Your entered otp is wrong." });
 
     await redis.del(otpKey);
+
+    // Set a verification flag in Redis for 10 minutes
+    const verifiedKey = `verified_email:${email}`;
+    await redis.setex(verifiedKey, 600, "true");
 
     res.status(200).json({ message: "OTP verified successfully" });
   } catch (error) {
