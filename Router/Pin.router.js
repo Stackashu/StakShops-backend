@@ -3,6 +3,7 @@ const router = express.Router();
 const { authentication, optionalAuthentication } = require("../Middleware/Authorization");
 const { createPin, getPinnedOrders, getActivePins, getPinById, getAllActivePins, getNearbyPins } = require("../Controller/Pin.controller");
 
+
 // POST /api/pins - Use a pin and subtract count
 router.post("/", authentication, createPin);
 
