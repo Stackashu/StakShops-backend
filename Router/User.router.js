@@ -1,5 +1,5 @@
 const { Router } = require("express");
-const {signUpUser,loginUser,sendOtp,verifyOtp,userDetails, updateUser, changePassword, getUserTransactions} = require("../Controller/User");
+const {signUpUser,loginUser,sendOtp,verifyOtp,userDetails, updateUser, changePassword, getUserTransactions, saveFcmToken} = require("../Controller/User");
 const { authentication } = require("../Middleware/Authorization");
 const routes = Router();
 
@@ -11,5 +11,6 @@ routes.post("/verifyOtp", verifyOtp);
 routes.post("/updateUser" , authentication , updateUser)
 routes.post("/changePassword", authentication, changePassword);
 routes.get("/transactions", authentication, getUserTransactions);
+routes.post("/save-fcm-token", authentication, saveFcmToken);
 
 module.exports = routes;

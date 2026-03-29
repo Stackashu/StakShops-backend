@@ -65,7 +65,15 @@ const userSchema = mongoose.Schema({
     },
     vouchers: [{
         type: String,
-    }]
+    }],
+    visibilityRadius: {
+        type: Number,
+        default: 500
+    },
+    fcmToken: {
+        type: String,
+        trim: true
+    }
 }, { timestamps: true }); // This adds createdAt and updatedAt automatically
 
 module.exports = mongoose.model("User", userSchema);

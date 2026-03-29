@@ -23,6 +23,13 @@ const signUpUser = async (req, res) => {
         .status(409)
         .json({ error: "User already exits with this email." });
 
+    // Check if email is verified via OTP
+    const verifiedKey = `verified_email:${userDetails.email}`;
+    const isVerified = await redis.get(verifiedKey);
+    if (!isVerified) {
+      return res.status(400).json({ error: "Email not verified. Please verify your email via OTP first." });
+    }
+
     const hashedPassword = await bcrypt.hash(userDetails.password, 10);
 
     userDetails.password = hashedPassword;
@@ -30,6 +37,9 @@ const signUpUser = async (req, res) => {
     let user = await User.create(userDetails);
 
     user = await User.findById(user._id).select("-password");
+
+    // Clear verification flag after successful signup
+    await redis.del(verifiedKey);
 
     await signUpQueue.add("email to user", {
       to: user.email,
@@ -132,6 +142,10 @@ const verifyOtp = async (req, res) => {
       return res.status(400).json({ error: "Your entered otp is wrong." });
 
     await redis.del(otpKey);
+
+    // Set a verification flag in Redis for 10 minutes
+    const verifiedKey = `verified_email:${email}`;
+    await redis.setex(verifiedKey, 600, "true");
 
     res.status(200).json({ message: "OTP verified successfully" });
   } catch (error) {
@@ -246,6 +260,36 @@ const getUserTransactions = async (req, res) => {
   }
 };
 
+const saveFcmToken = async (req, res) => {
+  const userId = req.user.userId;
+  const { token } = req.body;
+
+  try {
+    if (!token) {
+      return res.status(400).json({ error: "FCM Token is required." });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { fcmToken: token } },
+      { new: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    // Invalidate cache
+    const cacheKey = `user:${user.email}`;
+    await redis.del(cacheKey);
+
+    res.status(200).json({ message: "FCM Token saved successfully" });
+  } catch (error) {
+    console.error("Save FCM Token Error:", error);
+    res.status(500).json({ error: "Failed to save FCM token.", details: error.message });
+  }
+};
+
 module.exports = {
   signUpUser,
   loginUser,
@@ -254,5 +298,6 @@ module.exports = {
   userDetails,
   updateUser,
   changePassword,
-  getUserTransactions
+  getUserTransactions,
+  saveFcmToken
 };

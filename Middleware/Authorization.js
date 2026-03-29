@@ -21,4 +21,24 @@ const authentication = async (req, res, next) => {
     }
 };
 
-module.exports = { authentication };
+const optionalAuthentication = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) {
+            return next();
+        }
+
+        const [scheme, token] = authHeader.split(" ");
+        if (!token || scheme !== "Bearer") {
+            return next();
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        next();
+    }
+};
+
+module.exports = { authentication, optionalAuthentication };
